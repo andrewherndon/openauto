@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QEvent>
 #include <gst/video/videooverlay.h>
 #include <f1x/openauto/autoapp/Projection/GstVideoOutput.hpp>
 #include <f1x/openauto/Common/Log.hpp>
@@ -51,6 +52,7 @@ void GstVideoOutput::createVideoOutput()
     videoWidget_->setAttribute(Qt::WA_AcceptTouchEvents);
     videoWidget_->setStyleSheet("background: black;");
     videoWidget_->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+    videoWidget_->installEventFilter(this);   // to follow resizes, see eventFilter()
 }
 
 bool GstVideoOutput::open()
@@ -113,7 +115,6 @@ void GstVideoOutput::onStartPlayback()
     // The GL sink draws in a child window of ours; let touch/mouse events pass
     // through to the Qt widget so InputDevice still receives them.
     gst_video_overlay_handle_events(GST_VIDEO_OVERLAY(sink), FALSE);
-    gst_object_unref(sink);
 
     GstElement* appsrc = gst_bin_get_by_name(GST_BIN(pipeline), "src");
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
@@ -121,7 +122,22 @@ void GstVideoOutput::onStartPlayback()
     std::lock_guard<std::mutex> lock(mutex_);
     pipeline_ = pipeline;
     appsrc_ = appsrc;
+    sink_ = sink;
     OPENAUTO_LOG(info) << "[GstVideoOutput] pipeline playing";
+}
+
+// Sway resizes the window to the 16:9 area after the pipeline has started; the
+// Xv sink keeps drawing at the old size (cut off at the bottom) until told to
+// re-read the window geometry.
+bool GstVideoOutput::eventFilter(QObject* obj, QEvent* event)
+{
+    if (obj == videoWidget_.get() && (event->type() == QEvent::Resize || event->type() == QEvent::Expose)) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (sink_ != nullptr) {
+            gst_video_overlay_expose(GST_VIDEO_OVERLAY(sink_));
+        }
+    }
+    return QObject::eventFilter(obj, event);
 }
 
 void GstVideoOutput::onStopPlayback()
@@ -137,10 +153,15 @@ void GstVideoOutput::teardownPipeline()
 {
     GstElement* pipeline = nullptr;
     GstElement* appsrc = nullptr;
+    GstElement* sink = nullptr;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         std::swap(pipeline, pipeline_);
         std::swap(appsrc, appsrc_);
+        std::swap(sink, sink_);
+    }
+    if (sink != nullptr) {
+        gst_object_unref(sink);
     }
     if (appsrc != nullptr) {
         gst_app_src_end_of_stream(GST_APP_SRC(appsrc));

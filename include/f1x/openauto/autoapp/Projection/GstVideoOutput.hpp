@@ -39,6 +39,9 @@ signals:
     void startPlayback();
     void stopPlayback();
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 protected slots:
     void createVideoOutput();
     void onStartPlayback();
@@ -50,6 +53,7 @@ private:
     std::unique_ptr<QWidget> videoWidget_;
     GstElement* pipeline_ = nullptr;
     GstElement* appsrc_ = nullptr;
+    GstElement* sink_ = nullptr;
     std::mutex mutex_;   // guards pipeline_/appsrc_ between the aasdk and Qt threads
 };
 

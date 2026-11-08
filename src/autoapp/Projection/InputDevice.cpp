@@ -73,6 +73,17 @@ bool InputDevice::eventFilter(QObject* obj, QEvent* event)
         {
             touchscreenGeometry_ = QRect(0, 0, widget->width(), widget->height());
         }
+        // Touches on other OpenAuto windows (the menu behind the video, which
+        // spans the free strip below Android Auto) must not reach the phone:
+        // their coordinates are relative to a different window.
+        const bool pointerEvent = event->type() == QEvent::TouchBegin || event->type() == QEvent::TouchUpdate ||
+                                  event->type() == QEvent::TouchEnd || event->type() == QEvent::TouchCancel ||
+                                  event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease ||
+                                  event->type() == QEvent::MouseMove;
+        if(pointerEvent && widget->window()->windowTitle() != "autoapp")
+        {
+            return QObject::eventFilter(obj, event);
+        }
     }
 
     if(eventHandler_ != nullptr)

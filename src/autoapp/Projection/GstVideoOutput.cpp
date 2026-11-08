@@ -16,7 +16,7 @@ static const char* kPipeline =
     "caps=video/x-h264,stream-format=byte-stream "
     "! h264parse "
     "! avdec_h264 thread-type=slice max-threads=4 "
-    "! glimagesink name=sink sync=false force-aspect-ratio=true";
+    "! videoconvert ! %s name=sink sync=false force-aspect-ratio=true";
 
 GstVideoOutput::GstVideoOutput(configuration::IConfiguration::Pointer configuration)
     : VideoOutput(std::move(configuration))
@@ -92,8 +92,15 @@ void GstVideoOutput::onStartPlayback()
     videoWidget_->raise();
     videoWidget_->activateWindow();
 
+    // Sink is selectable for experiments: OPENAUTO_GST_SINK=glimagesink|xvimagesink|ximagesink.
+    // Default xvimagesink: XWayland's Xv adaptor scales on the GPU and draws
+    // straight into our window (no foreign GL child window or render thread).
+    const char* sinkName = g_getenv("OPENAUTO_GST_SINK");
+    gchar* description = g_strdup_printf(kPipeline, sinkName ? sinkName : "xvimagesink");
+    OPENAUTO_LOG(info) << "[GstVideoOutput] pipeline: " << description;
     GError* error = nullptr;
-    GstElement* pipeline = gst_parse_launch(kPipeline, &error);
+    GstElement* pipeline = gst_parse_launch(description, &error);
+    g_free(description);
     if (pipeline == nullptr || error != nullptr) {
         OPENAUTO_LOG(error) << "[GstVideoOutput] pipeline error: " << (error ? error->message : "unknown");
         if (error) g_error_free(error);

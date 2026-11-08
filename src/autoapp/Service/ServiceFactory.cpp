@@ -44,6 +44,9 @@
 #include <f1x/openauto/autoapp/Projection/QtAudioOutput.hpp>
 #include <f1x/openauto/autoapp/Projection/QtAudioInput.hpp>
 #include <f1x/openauto/autoapp/Projection/InputDevice.hpp>
+#include <f1x/openauto/autoapp/Projection/GstVideoOutput.hpp>
+#include <cstdlib>
+#include <cstring>
 #include <f1x/openauto/autoapp/Projection/LocalBluetoothDevice.hpp>
 #include <f1x/openauto/autoapp/Projection/DummyBluetoothDevice.hpp>
 
@@ -179,8 +182,18 @@ namespace f1x::openauto::autoapp::service {
 #ifdef USE_OMX
     auto videoOutput(std::make_shared<projection::OMXVideoOutput>(configuration_));
 #else
-    projection::IVideoOutput::Pointer videoOutput(new projection::QtVideoOutput(configuration_),
-                                                  std::bind(&QObject::deleteLater, std::placeholders::_1));
+    const char* videoBackend = std::getenv("OPENAUTO_VIDEO_BACKEND");
+    const bool useQtVideo = videoBackend != nullptr && std::strcmp(videoBackend, "qt") == 0;
+    OPENAUTO_LOG(info) << "[ServiceFactory] Video backend: " << (useQtVideo ? "qt" : "gst");
+    // Both outputs are QObjects living on the GUI thread: delete them with deleteLater().
+    projection::IVideoOutput::Pointer videoOutput;
+    if (useQtVideo) {
+      videoOutput = projection::IVideoOutput::Pointer(new projection::QtVideoOutput(configuration_),
+                                                      std::bind(&QObject::deleteLater, std::placeholders::_1));
+    } else {
+      videoOutput = projection::IVideoOutput::Pointer(new projection::GstVideoOutput(configuration_),
+                                                      std::bind(&QObject::deleteLater, std::placeholders::_1));
+    }
 #endif
 
     OPENAUTO_LOG(info) << "[ServiceFactory] Video Channel enabled";

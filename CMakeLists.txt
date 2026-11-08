@@ -153,6 +153,12 @@ file(GLOB_RECURSE autoapp_source_files ${autoapp_sources_directory}/*.ui ${autoa
 
 add_executable(autoapp ${autoapp_source_files})
 
+# Low-latency video output (GstVideoOutput)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GST_LL REQUIRED gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
+target_include_directories(autoapp PRIVATE ${GST_LL_INCLUDE_DIRS})
+target_link_libraries(autoapp PRIVATE ${GST_LL_LIBRARIES})
+
 target_include_directories(autoapp PUBLIC ${AAP_PROTOBUF_INCLUDE_DIR} ${AASDK_INCLUDE_DIR})
 
 target_link_libraries(autoapp PUBLIC

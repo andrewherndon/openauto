@@ -16,6 +16,7 @@
 *  along with openauto. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <QWidget>
 #include <f1x/openauto/Common/Log.hpp>
 #include <f1x/openauto/autoapp/Projection/IInputDeviceEventHandler.hpp>
 #include <f1x/openauto/autoapp/Projection/InputDevice.hpp>
@@ -63,6 +64,16 @@ void InputDevice::stop()
 bool InputDevice::eventFilter(QObject* obj, QEvent* event)
 {
     std::lock_guard<decltype(mutex_)> lock(mutex_);
+
+    // Use the size of the window the event landed in as the touch area.
+    if(obj->isWidgetType())
+    {
+        QWidget* widget = static_cast<QWidget*>(obj);
+        if(widget->isWindow() && widget->width() > 1 && widget->height() > 1)
+        {
+            touchscreenGeometry_ = QRect(0, 0, widget->width(), widget->height());
+        }
+    }
 
     if(eventHandler_ != nullptr)
     {

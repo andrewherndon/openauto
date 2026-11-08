@@ -17,6 +17,7 @@
 */
 
 #include <QWidget>
+#include <QWindow>
 #include <f1x/openauto/Common/Log.hpp>
 #include <f1x/openauto/autoapp/Projection/IInputDeviceEventHandler.hpp>
 #include <f1x/openauto/autoapp/Projection/InputDevice.hpp>
@@ -65,25 +66,37 @@ bool InputDevice::eventFilter(QObject* obj, QEvent* event)
 {
     std::lock_guard<decltype(mutex_)> lock(mutex_);
 
-    // Use the size of the window the event landed in as the touch area.
-    if(obj->isWidgetType())
+    // Map touches relative to the window they landed in, and only forward
+    // touches on the Android Auto video window ("autoapp") to the phone.
+    // Qt delivers pointer events to both the QWindow and the QWidget, so read
+    // the size and title from whichever one this is. Upstream used the whole
+    // screen size, which is wrong once the video window is smaller than the
+    // screen (our 16:9 area) and made taps land too high.
+    const bool pointerEvent = event->type() == QEvent::TouchBegin || event->type() == QEvent::TouchUpdate ||
+                              event->type() == QEvent::TouchEnd || event->type() == QEvent::TouchCancel ||
+                              event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease ||
+                              event->type() == QEvent::MouseMove;
+    if(pointerEvent)
     {
-        QWidget* widget = static_cast<QWidget*>(obj);
-        if(widget->isWindow() && widget->width() > 1 && widget->height() > 1)
+        QString title;
+        QSize size;
+        if(obj->isWindowType())
         {
-            touchscreenGeometry_ = QRect(0, 0, widget->width(), widget->height());
+            QWindow* window = static_cast<QWindow*>(obj);
+            title = window->title();
+            size = window->size();
         }
-        // Touches on other OpenAuto windows (the menu behind the video, which
-        // spans the free strip below Android Auto) must not reach the phone:
-        // their coordinates are relative to a different window.
-        const bool pointerEvent = event->type() == QEvent::TouchBegin || event->type() == QEvent::TouchUpdate ||
-                                  event->type() == QEvent::TouchEnd || event->type() == QEvent::TouchCancel ||
-                                  event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease ||
-                                  event->type() == QEvent::MouseMove;
-        if(pointerEvent && widget->window()->windowTitle() != "autoapp")
+        else if(obj->isWidgetType())
+        {
+            QWidget* window = static_cast<QWidget*>(obj)->window();
+            title = window->windowTitle();
+            size = window->size();
+        }
+        if(title != "autoapp" || size.width() <= 1 || size.height() <= 1)
         {
             return QObject::eventFilter(obj, event);
         }
+        touchscreenGeometry_ = QRect(QPoint(0, 0), size);
     }
 
     if(eventHandler_ != nullptr)
@@ -416,6 +429,7 @@ void InputDevice::translateTouchPoint(const QTouchEvent::TouchPoint& qtPoint, To
     OPENAUTO_LOG(debug) << "[InputDevice] Touch point: qtId=" << qtId 
                         << " ourId=" << ourPoint.pointerId 
                         << " pos=(" << ourPoint.x << "," << ourPoint.y << ")"
+                        << " raw=(" << pos.x() << "," << pos.y() << ") area=" << touchscreenGeometry_.width() << "x" << touchscreenGeometry_.height()
                         << " state=" << qtPoint.state();
 }
 

@@ -9,10 +9,11 @@ namespace f1x { namespace openauto { namespace autoapp { namespace projection {
 
 // Decode on slice threads (no frame-threading delay), draw on the GPU, never wait
 // on the clock: a late frame is shown at once, not held for its timestamp.
+// Nothing may be dropped before the decoder: losing compressed H.264 data
+// corrupts every following frame until the next keyframe.
 static const char* kPipeline =
     "appsrc name=src is-live=true do-timestamp=true format=time "
     "caps=video/x-h264,stream-format=byte-stream "
-    "! queue max-size-buffers=2 leaky=downstream "
     "! h264parse "
     "! avdec_h264 thread-type=slice max-threads=4 "
     "! glimagesink name=sink sync=false force-aspect-ratio=true";
@@ -102,6 +103,9 @@ void GstVideoOutput::onStartPlayback()
 
     GstElement* sink = gst_bin_get_by_name(GST_BIN(pipeline), "sink");
     gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(sink), static_cast<guintptr>(videoWidget_->winId()));
+    // The GL sink draws in a child window of ours; let touch/mouse events pass
+    // through to the Qt widget so InputDevice still receives them.
+    gst_video_overlay_handle_events(GST_VIDEO_OVERLAY(sink), FALSE);
     gst_object_unref(sink);
 
     GstElement* appsrc = gst_bin_get_by_name(GST_BIN(pipeline), "src");

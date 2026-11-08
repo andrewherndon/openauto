@@ -67,7 +67,7 @@ bool InputDevice::eventFilter(QObject* obj, QEvent* event)
     std::lock_guard<decltype(mutex_)> lock(mutex_);
 
     // Map touches relative to the window they landed in, and only forward
-    // touches on the Android Auto video window ("autoapp") to the phone.
+    // touches on the Android Auto video window ("openauto-video") to the phone.
     // Qt delivers pointer events to both the QWindow and the QWidget, so read
     // the size and title from whichever one this is. Upstream used the whole
     // screen size, which is wrong once the video window is smaller than the
@@ -92,7 +92,7 @@ bool InputDevice::eventFilter(QObject* obj, QEvent* event)
             title = window->windowTitle();
             size = window->size();
         }
-        if(title != "autoapp" || size.width() <= 1 || size.height() <= 1)
+        if(title != "openauto-video" || size.width() <= 1 || size.height() <= 1)
         {
             return QObject::eventFilter(obj, event);
         }

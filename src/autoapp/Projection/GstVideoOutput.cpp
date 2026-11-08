@@ -45,7 +45,7 @@ void GstVideoOutput::createVideoOutput()
 {
     OPENAUTO_LOG(info) << "[GstVideoOutput] createVideoOutput()";
     videoWidget_ = std::make_unique<QWidget>();
-    videoWidget_->setWindowTitle("autoapp");          // aa-video-watch places this window
+    videoWidget_->setWindowTitle("openauto-video");   // hu-daemon finds and places this window
     videoWidget_->setAttribute(Qt::WA_NativeWindow);  // real X11 window for the GL sink
     videoWidget_->setAttribute(Qt::WA_PaintOnScreen); // GStreamer paints it, not Qt
     videoWidget_->setAttribute(Qt::WA_NoSystemBackground);

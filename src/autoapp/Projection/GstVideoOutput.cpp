@@ -20,6 +20,12 @@ static const char* kPipeline =
 GstVideoOutput::GstVideoOutput(configuration::IConfiguration::Pointer configuration)
     : VideoOutput(std::move(configuration))
 {
+    // The GL sink must use the same window system as Qt: under XWayland Qt hands
+    // us an X11 window id, but GStreamer would pick Wayland (WAYLAND_DISPLAY is
+    // set) and crash drawing into it.
+    if (QGuiApplication::platformName() == "xcb") {
+        g_setenv("GST_GL_WINDOW", "x11", FALSE);
+    }
     gst_init(nullptr, nullptr);
     // Widgets must live on the Qt GUI thread; aasdk calls us from its own threads.
     this->moveToThread(QApplication::instance()->thread());
